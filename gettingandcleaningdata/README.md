@@ -83,7 +83,7 @@ names(result)<-gsub("BodyBody", "Body", names(result))
 ```
 1. (5) -  From the data set in step 4, creates a second, independent tidy data set with the average of each variable for each activity and each subject.
 ```
-AverageProVariableActivitySubject <-ddply(melt(result, id=c("subject", "activity")),.(subject, activity), summarize, mean = mean(value))
+AverageProVariableActivitySubject <- result %>% group_by(subject, activity) %>% summarise_each(funs(mean))
 ## CSV File will be saved in your Workspace
 write.table(AverageProVariableActivitySubject, file="AverageProVariableActivitySubject.txt", row.name=FALSE)
 ```
