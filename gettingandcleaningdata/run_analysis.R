@@ -14,6 +14,7 @@ setwd("/Users/mpluta/coursera/getting_and_cleaning_data/assignment")
 ## Load necessary Libraries
 library(data.table)
 library(plyr)
+library(dplyr)
 
 ## download and unzip data from assignment
 temp <- tempfile()
