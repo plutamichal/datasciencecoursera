@@ -1,0 +1,174 @@
+---
+title: "Practical machine learning Course Project"
+author: "Michal Pluta"
+date: "January 27‚ 2018"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Abstract
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+The goal of this projectis to predict the manner in which they did the exercise ("class" variable).
+
+# Data Sets
+
+The training data for this project are available here:
+
+* https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+* https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: 
+
+* http://groupware.les.inf.puc-rio.br/har. 
+
+The test data will be used for final verification.
+
+# Environemt preparation
+
+Loading necessary libraries and setting seed.
+
+```{r env_setup, message=FALSE}
+library(foreach)
+library(caret)
+# parallel processing
+library(parallel)
+library(doParallel)
+
+set.seed(3524)
+
+cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+registerDoParallel(cluster)
+```
+
+# Loading data
+
+```{r data_load, message=FALSE}
+#trainDS <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+#finalTestDS <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+trainDS <- read.csv("pml-training.csv")
+finalTestDS <- read.csv("pml-testing.csv")
+
+```
+ 
+Loaded data sets overview:
+ 
+ Data set    | Number of observations  | Number of variables    |
+ ----------- | ----------------------- | ---------------------- | 
+ trainsDS    | `r dim(trainDS)[1]`     | `r dim(trainDS)[2]`    |
+ finalTestDS | `r dim(finalTestDS)[1]` | `r dim(finalTestDS)[2]`| 
+
+
+Info: finalTestDS will be used for final project verification
+
+# Splitting training set
+
+Training data set is splitted into: train and test, accordingly 80% and 20% of data.
+```{r split_trainingset}                            
+inTrain <- createDataPartition(trainDS$classe, p = 0.8, list = FALSE)
+train <- trainDS[inTrain, ]
+test <- trainDS[-inTrain, ]
+```
+
+Splitting overview:
+
+ Data set    | Number of observations  | Number of variables    |
+ ----------- | ----------------------- | ---------------------- | 
+ train       | `r dim(train )[1]`      | `r dim(train)[2]`      |
+ test        | `r dim(test)[1]`        | `r dim(test)[2]`       | 
+                                                                                                               
+# Cleaning data
+
+## Removing non-significant variables
+
+The following variables will be removed from train and test dataset, since they have not impact for the outcome 'classe':  `r names(train)[c(1:7)]`
+```{r removeColumns}
+train <- train[, -c(1:7)]
+test <- test[, -c(1:7)]
+```
+
+## Removing variables with nearly zero variance
+```{r removeNZV}
+nzv = nearZeroVar(train)
+train <- train[, -nzv]
+test <- test[, -nzv]
+```
+
+## Removing variables whith NA most values 
+```{r removeNAs}
+nullValues <- sapply(train, function(x) mean(is.na(x))) > 0.95
+train <- train[, nullValues==FALSE]
+test <- test[, nullValues==FALSE]
+```
+
+## Cleaning overview
+
+ Data set    | Number of observations  | Number of variables    |
+ ----------- | ----------------------- | ---------------------- | 
+ train       | `r dim(train )[1]`      | `r dim(train)[2]`      |
+ test        | `r dim(test)[1]`        | `r dim(test)[2]`       | 
+
+# Building Model
+
+## Selected Model 
+
+To test the best accuracy two model will be compared:
+
+* rpart - Classification Tree
+* rf - Random Forest
+
+5-Fold Cross Validation method will be used for trainControl within caret package.
+
+## Model Comparision
+
+```{r modelComparision, message=FALSE}
+#trainControl=CV
+controlCV <- trainControl(method = "cv",number = 5, allowParallel = TRUE)
+modelRFControlCv <- train(classe ~ ., data = train, method = "rf", trControl = controlCV)
+modelRPartControlCv <- train(classe ~ ., data = train, method = "rpart", trControl = controlCV)
+
+# collect resamples
+resultsCV <- resamples(list(RF_cv=modelRFControlCv, RPart_cv=modelRPartControlCv))
+# boxplots of results
+bwplot(resultsCV)
+
+stopCluster(cluster)
+
+```
+
+Model Classification Tree can not be used for prediction. Accuracy is around 0.5
+Random Forest Model will be used for further analyse.
+
+## Prediction
+
+```{r prediction, message=FALSE}
+# Random Forest
+print(modelRFControlCv)
+
+# Prediction for test set (20% of trainDS)
+predict <- predict(modelRFControlCv, test)
+
+# Prediction result
+confusion <- confusionMatrix(test$classe, predict)
+confusion
+```
+
+Accuracy is around 99,3%, so the out-of-sample error is 0,7%. 
+
+## Prediction on finalTest DataSet
+```{r predictionFinalTest, message=FALSE}
+# Prediction for final test set
+predictFinal <- predict(modelRFControlCv, finalTestDS)
+predictFinal
+```
+
